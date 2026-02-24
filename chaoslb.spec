@@ -1,3 +1,7 @@
+%define _missing_build_ids_terminate_build 0
+%define _build_id_links none
+%define debug_package %{nil}
+
 Name:           chaoslb
 Version:        %{version}
 Release:        1%{?dist}

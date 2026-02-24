@@ -173,7 +173,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rpm-${{ matrix.os.name }}-${{ matrix.os.version }}
+          name: rpm-${{ matrix.os.dist }}
           path: dist/rpm/*.rpm
           retention-days: 1
 
