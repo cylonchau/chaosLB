@@ -1,0 +1,5 @@
+target/chaoslb usr/bin
+config/config.json.example etc/chaoslb
+systemd/chaoslb.service lib/systemd/system
+README.md usr/share/doc/chaoslb
+LICENSE usr/share/doc/chaoslb

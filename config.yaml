@@ -1,0 +1,18 @@
+{
+  "services": [
+    {
+      "vip": "192.168.1.1",
+      "local_port": 9000,
+      "backends": [
+        {"ip": "10.10.10.240", "port": 9000, "weight": 1},
+        {"ip": "10.10.10.241", "port": 9000, "weight": 1},
+        {"ip": "10.10.10.242", "port": 9000, "weight": 1},
+        {"ip": "10.10.10.243", "port": 9000, "weight": 1}
+      ],
+      "protocol": "tcp",
+      "interface": "minio0",
+      "business": "minio-video"
+    }
+  ],
+  "metrics_port": 29090
+}

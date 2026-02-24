@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	@mkdir -p target
+	CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.version=$(shell dpkg-parsechangelog -S Version | cut -d- -f1)" -o target/chaoslb ./cmd/chaoslb
+	upx --best target/chaoslb
+
+override_dh_auto_test:
+	true
+
+override_dh_auto_install:
+	true
+
+override_dh_strip:
+	true
+
+override_dh_dwz:
+	true

@@ -1,0 +1,15 @@
+Source: chaoslb
+Section: utils
+Priority: optional
+Maintainer: chaoslb Maintainer <maintainer@example.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.19)
+Standards-Version: 4.6.0
+Homepage: https://github.com/cylonchau/chaosLB
+Rules-Requires-Root: no
+
+Package: chaoslb
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ipvsadm, iptables
+Description: Chaos Load Balancer - IPVS Manager with Prometheus Metrics
+  Chaos Load Balancer is a high-performance load balancer management tool that provides
+  IPVS virtual service configuration and Prometheus metrics.

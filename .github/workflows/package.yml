@@ -1,0 +1,189 @@
+name: Package Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    name: Build DEB packages
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - { name: ubuntu, version: "22.04" }
+          - { name: ubuntu, version: "24.04" }
+          - { name: debian, version: "11" }
+          - { name: debian, version: "12" }
+          - { name: debian, version: "13" }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            # Get changelog since last tag
+            PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref }}^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              CHANGELOG=$(git log --pretty=format:"* %s" "$PREV_TAG..${{ github.ref }}")
+            else
+              CHANGELOG=$(git log --pretty=format:"* %s" -n 20)
+            fi
+          else
+            VERSION="1.0.0"
+            CHANGELOG="* Automated build for ref ${{ github.sha }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Escape characters for GITHUB_OUTPUT
+          CHANGELOG_ESCAPED="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED//$'\n'/'%0A'}"
+          CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED//$'\r'/'%0D'}"
+          echo "changelog=$CHANGELOG_ESCAPED" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper devscripts dpkg-dev build-essential upx-ucl
+
+      - name: Update changelog
+        run: |
+          git config user.email "ci@github.com"
+          git config user.name "GitHub Actions"
+          rm -f debian/changelog
+          # Extract unescaped changelog
+          echo "${{ steps.version.outputs.changelog }}" | sed 's/%0A/\n/g' | sed 's/%0D//g' | sed 's/%25/%/g' > changelog.txt
+          dch --create --package chaoslb -v "${{ steps.version.outputs.version }}-1" --distribution unstable --empty "Release ${{ steps.version.outputs.version }}"
+          while read -r line; do
+            [ -n "$line" ] && dch -a "$line"
+          done < changelog.txt
+
+      - name: Build DEB
+        run: dpkg-buildpackage -us -uc -b -d
+
+      - name: Move packages
+        run: |
+          mkdir -p dist/deb
+          mv ../*.deb dist/deb/chaoslb_${{ steps.version.outputs.version }}_amd64-${{ matrix.os.name }}${{ matrix.os.version }}.deb
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.os.name }}-${{ matrix.os.version }}
+          path: dist/deb/*.deb
+          retention-days: 1
+
+  build-rpm:
+    name: Build RPM packages
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - { image: "rockylinux:9", name: "rocky9" }
+          - { image: "almalinux:8", name: "centos7" } # Simulating centos7 build env
+          - { image: "rockylinux:10-minimal", name: "rocky10" }
+    container:
+      image: ${{ matrix.os.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            # Get changelog since last tag
+            PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref }}^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              CHANGELOG=$(git log --pretty=format:"* %s" "$PREV_TAG..${{ github.ref }}")
+            else
+              CHANGELOG=$(git log --pretty=format:"* %s" -n 20)
+            fi
+          else
+            VERSION="1.0.0"
+            CHANGELOG="* Automated build for ref ${{ github.sha }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Escape characters for GITHUB_OUTPUT
+          CHANGELOG_ESCAPED="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED//$'\n'/'%0A'}"
+          CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED//$'\r'/'%0D'}"
+          echo "changelog=$CHANGELOG_ESCAPED" >> $GITHUB_OUTPUT
+
+      - name: Install build tools
+        run: |
+          if command -v dnf >/dev/null; then
+            dnf install -y epel-release
+            dnf install -y git rpm-build rpmdevtools make gcc golang upx
+          else
+            yum install -y epel-release
+            yum install -y git rpm-build rpmdevtools make gcc golang upx
+          fi
+
+      - name: Setup rpmbuild
+        run: |
+          rpmdev-setuptree
+          mkdir -p chaoslb-${{ steps.version.outputs.version }}
+          cp -r cmd pkg go.mod go.sum chaoslb-${{ steps.version.outputs.version }}/
+          mkdir -p chaoslb-${{ steps.version.outputs.version }}/config
+          cp config.yaml chaoslb-${{ steps.version.outputs.version }}/config/config.json.example
+          mkdir -p chaoslb-${{ steps.version.outputs.version }}/systemd
+          # Create a dummy service file if not exists or use existing
+          if [ -d systemd ]; then cp -r systemd/* chaoslb-${{ steps.version.outputs.version }}/systemd/; fi
+          cp README.md LICENSE chaoslb-${{ steps.version.outputs.version }}/
+          tar czf ~/rpmbuild/SOURCES/chaoslb-${{ steps.version.outputs.version }}.tar.gz chaoslb-${{ steps.version.outputs.version }}
+          
+          # Inject changelog into Spec file
+          DATE_STR=$(date "+%a %b %d %Y")
+          echo "${{ steps.version.outputs.changelog }}" | sed 's/%0A/\n- /g' | sed 's/%0D//g' | sed 's/%25/%/g' > changelog_rpm.txt
+          # Start with the changelog header
+          HEADER="* $DATE_STR GitHub Actions <ci@github.com> - ${{ steps.version.outputs.version }}-1"
+          # Find where %changelog starts and replace everything after it
+          sed -i "/^%changelog/q" chaoslb.spec
+          echo "$HEADER" >> chaoslb.spec
+          echo "- $(cat changelog_rpm.txt)" >> chaoslb.spec
+          
+          cp chaoslb.spec ~/rpmbuild/SPECS/
+
+      - name: Build RPM
+        run: |
+          rpmbuild --define "version ${{ steps.version.outputs.version }}" -bb ~/rpmbuild/SPECS/chaoslb.spec
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.os.name }}
+          path: /github/home/rpmbuild/RPMS/*/*.rpm
+          retention-days: 1
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-deb, build-rpm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
