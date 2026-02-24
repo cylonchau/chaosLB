@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/chaoslb /etc/chaoslb/config.json
+ExecStart=/usr/bin/chaoslb --config /etc/chaoslb/config.json
 Restart=on-failure
 
 [Install]
