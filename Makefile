@@ -6,7 +6,7 @@ ifeq ($(VERSION),)
   VERSION := unknown
 endif
 RELEASE := 1
-ARCH := x86_64
+ARCH := $(shell uname -m)
 
 TOPDIR := $(shell pwd)/rpmbuild
 SOURCEDIR := $(TOPDIR)/SOURCES

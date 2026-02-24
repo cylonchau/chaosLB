@@ -24,13 +24,7 @@ Chaos Load Balancer is a high-performance load balancer management tool that pro
 %autosetup
 
 %build
-export CGO_ENABLED=0
-export GOOS=linux
-export GOARCH=amd64
-go mod download
-mkdir -p target
-go build -ldflags="-w -s -X main.version=%{version}" -o target/chaoslb ./cmd/chaoslb
-upx --best target/chaoslb
+make build VERSION=%{version}
 
 %install
 # Create directories

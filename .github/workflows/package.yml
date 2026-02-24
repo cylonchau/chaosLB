@@ -22,6 +22,7 @@ jobs:
           fetch-depth: 0
       - name: Extract version and changelog
         id: version
+        shell: bash
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
@@ -82,17 +83,16 @@ jobs:
 
       - name: Build DEB
         run: |
-          # Use version from prepare job in build
-          CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.version=${{ needs.prepare.outputs.version }}" -o target/chaoslb ./cmd/chaoslb
-          upx --best target/chaoslb
+          make build VERSION=${{ needs.prepare.outputs.version }}
           dpkg-buildpackage -us -uc -b -d
 
       - name: Move packages
         run: |
           mkdir -p dist/deb
+          ARCH=$(dpkg --print-architecture)
           for deb in ../*.deb; do
             if [ -f "$deb" ]; then
-              newname="chaoslb_${{ needs.prepare.outputs.version }}_amd64-${{ matrix.os.name }}${{ matrix.os.version }}.deb"
+              newname="chaoslb_${{ needs.prepare.outputs.version }}_${ARCH}-${{ matrix.os.name }}${{ matrix.os.version }}.deb"
               mv "$deb" "dist/deb/$newname"
             fi
           done
@@ -111,14 +111,15 @@ jobs:
     strategy:
       matrix:
         os:
-          - { name: "rockylinux/rockylinux", version: "9", dist: el9 }
-          - { name: almalinux, version: "8", dist: el7 }
+          - { image: "rockylinux:9", dist: el9 }
+          - { image: "almalinux:8", dist: el7 }
     container:
-      image: ${{ matrix.os.name }}:${{ matrix.os.version }}
+      image: ${{ matrix.os.image }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install build tools
+        shell: bash
         run: |
           if command -v dnf >/dev/null; then
             dnf install -y epel-release
@@ -129,18 +130,27 @@ jobs:
             yum install -y git rpm-build rpmdevtools make gcc \
               clang llvm elfutils-libelf-devel kernel-devel upx systemd-rpm-macros
           fi
+          git config --global --add safe.directory '*'
+
+      - name: Install Go
+        run: |
+          curl -L https://go.dev/dl/go1.22.0.linux-amd64.tar.gz -o go.tar.gz
+          tar -C /usr/local -xzf go.tar.gz
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
 
       - name: Setup rpmbuild
+        shell: bash
         run: |
           rpmdev-setuptree
           mkdir -p chaoslb-${{ needs.prepare.outputs.version }}
-          cp -r cmd pkg go.mod go.sum chaoslb-${{ needs.prepare.outputs.version }}/
+          cp -r cmd pkg go.mod go.sum Makefile chaoslb-${{ needs.prepare.outputs.version }}/
           cp config.json chaoslb-${{ needs.prepare.outputs.version }}/
           cp chaoslb.service chaoslb-${{ needs.prepare.outputs.version }}/
           cp README.md LICENSE chaoslb-${{ needs.prepare.outputs.version }}/
           tar czf ~/rpmbuild/SOURCES/chaoslb-${{ needs.prepare.outputs.version }}.tar.gz chaoslb-${{ needs.prepare.outputs.version }}
           
-          # Inject changelog into Spec file
+          # Inject version and changelog into Spec file
+          sed -i "s/^Version:.*/Version:        ${{ needs.prepare.outputs.version }}/" chaoslb.spec
           DATE_STR=$(date "+%a %b %d %Y")
           echo "${{ needs.prepare.outputs.changelog }}" | sed 's/%0A/\n- /g' | sed 's/%0D//g' | sed 's/%25/%/g' > changelog_rpm.txt
           HEADER="* $DATE_STR GitHub Actions <ci@github.com> - ${{ needs.prepare.outputs.version }}-1"
@@ -151,14 +161,20 @@ jobs:
           cp chaoslb.spec ~/rpmbuild/SPECS/
 
       - name: Build RPM
+        shell: bash
         run: |
           rpmbuild --define "version ${{ needs.prepare.outputs.version }}" -bb ~/rpmbuild/SPECS/chaoslb.spec
+
+      - name: Copy RPM packages
+        run: |
+          mkdir -p dist/rpm
+          cp ~/rpmbuild/RPMS/*/*.rpm dist/rpm/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rpm-${{ matrix.os.name }}
-          path: /github/home/rpmbuild/RPMS/*/*.rpm
+          name: rpm-${{ matrix.os.name }}-${{ matrix.os.version }}
+          path: dist/rpm/*.rpm
           retention-days: 1
 
   release:
