@@ -38,7 +38,7 @@ TARGET_DIR := target
 build:
 	@echo "Building Go binary..."
 	@mkdir -p $(TARGET_DIR)
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -X main.version=$(VERSION)" -o $(TARGET_DIR)/$(NAME) ./cmd/$(NAME)
+	CGO_ENABLED=0 go build -ldflags="-w -s -X main.version=$(VERSION)" -o $(TARGET_DIR)/$(NAME) ./cmd/$(NAME)
 	@if command -v upx >/dev/null; then \
 		echo "Compressing binary with UPX..."; \
 		upx --best $(TARGET_DIR)/$(NAME); \

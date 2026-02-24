@@ -56,7 +56,6 @@ hermes/*
 !COREDNS_VERSION
 *.test
 coverage.*
-systemd
-systemd/*
-config
-config/*
+/systemd/
+/config/
+/config/*
