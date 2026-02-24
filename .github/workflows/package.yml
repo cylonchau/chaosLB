@@ -173,46 +173,10 @@ jobs:
           path: /github/home/rpmbuild/RPMS/*/*.rpm
           retention-days: 1
 
-  build-macos:
-    name: Build macOS binaries
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            goarch: amd64
-            suffix: "-darwin-amd64"
-          - os: macos-14
-            goarch: arm64
-            suffix: "-darwin-arm64"
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-
-      - name: Install UPX
-        run: brew install upx
-
-      - name: Build binaries
-        run: |
-          GOOS=darwin GOARCH=${{ matrix.goarch }} make build
-          mv target/chaoslb target/chaoslb${{ matrix.suffix }}
-          zip -j target/chaoslb${{ matrix.suffix }}.zip target/chaoslb${{ matrix.suffix }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-binaries-${{ matrix.goarch }}
-          path: target/*.zip
-          retention-days: 1
-
   release:
     name: Create Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-deb, build-rpm, build-macos]
+    needs: [build-deb, build-rpm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
