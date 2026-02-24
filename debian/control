@@ -1,8 +1,8 @@
 Source: chaoslb
 Section: utils
 Priority: optional
-Maintainer: chaoslb Maintainer <maintainer@example.com>
-Build-Depends: debhelper-compat (= 13), golang-go (>= 1.19)
+Maintainer: chaoslb Maintainer <cylonchau@outlook.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.23)
 Standards-Version: 4.6.0
 Homepage: https://github.com/cylonchau/chaosLB
 Rules-Requires-Root: no
