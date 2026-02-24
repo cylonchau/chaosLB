@@ -261,33 +261,59 @@ func (m *IPVSManager) updateVIPStatus() {
 
 func (m *IPVSManager) parseIPVSStats(output string) {
 	lines := strings.Split(output, "\n")
+	var currentService string
+	
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) < 6 {
 			continue
 		}
-		// Match VIP:Port
-		if strings.Contains(fields[0], ":") {
-			service := fields[0]
-			conns, _ := strconv.ParseFloat(fields[1], 64)
-			inPkts, _ := strconv.ParseFloat(fields[2], 64)
-			outPkts, _ := strconv.ParseFloat(fields[3], 64)
-			inBytes, _ := strconv.ParseFloat(fields[4], 64)
-			outBytes, _ := strconv.ParseFloat(fields[5], 64)
 
-			business := m.getBusinessForService(service)
-			m.metrics.ConnectionsTotal.WithLabelValues(service, business).Set(conns)
-			m.metrics.PacketsInTotal.WithLabelValues(service, business).Set(inPkts)
-			m.metrics.PacketsOutTotal.WithLabelValues(service, business).Set(outPkts)
-			m.metrics.BytesInTotal.WithLabelValues(service, business).Set(inBytes)
-			m.metrics.BytesOutTotal.WithLabelValues(service, business).Set(outBytes)
+		// Handle Service line or Real Server line
+		var targetAddress string
+		isBackend := false
+		
+		if fields[0] == "TCP" || fields[0] == "UDP" {
+			currentService = fields[1]
+			targetAddress = currentService
+		} else if fields[0] == "->" {
+			targetAddress = fields[1]
+			isBackend = true
+		} else {
+			continue
+		}
+
+		if currentService == "" {
+			continue
+		}
+
+		conns, _ := strconv.ParseFloat(fields[2], 64)
+		inPkts, _ := strconv.ParseFloat(fields[3], 64)
+		outPkts, _ := strconv.ParseFloat(fields[4], 64)
+		inBytes, _ := strconv.ParseFloat(fields[5], 64)
+		outBytes, _ := strconv.ParseFloat(fields[6], 64)
+
+		business := m.getBusinessForService(currentService)
+		
+		if !isBackend {
+			m.metrics.ConnectionsTotal.WithLabelValues(targetAddress, business).Set(conns)
+			m.metrics.PacketsInTotal.WithLabelValues(targetAddress, business).Set(inPkts)
+			m.metrics.PacketsOutTotal.WithLabelValues(targetAddress, business).Set(outPkts)
+			m.metrics.BytesInTotal.WithLabelValues(targetAddress, business).Set(inBytes)
+			m.metrics.BytesOutTotal.WithLabelValues(targetAddress, business).Set(outBytes)
+		} else {
+			m.metrics.BackendConnections.WithLabelValues(currentService, targetAddress, business).Set(conns)
+			m.metrics.BackendInPackets.WithLabelValues(currentService, targetAddress, business).Set(inPkts)
+			m.metrics.BackendOutPackets.WithLabelValues(currentService, targetAddress, business).Set(outPkts)
+			m.metrics.BackendInBytes.WithLabelValues(currentService, targetAddress, business).Set(inBytes)
+			m.metrics.BackendOutBytes.WithLabelValues(currentService, targetAddress, business).Set(outBytes)
 		}
 	}
 }
 
 func (m *IPVSManager) parseIPVSConnections(output string) {
 	lines := strings.Split(output, "\n")
-	currentService := ""
+	var currentService string
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) == 0 {
@@ -303,15 +329,17 @@ func (m *IPVSManager) parseIPVSConnections(output string) {
 			continue
 		}
 
-		if strings.HasPrefix(line, "  ->") && currentService != "" {
+		if fields[0] == "->" && currentService != "" {
 			backend := fields[1]
 			weight, _ := strconv.ParseFloat(fields[3], 64)
 			active, _ := strconv.ParseFloat(fields[4], 64)
 			inact, _ := strconv.ParseFloat(fields[5], 64)
 
 			business := m.getBusinessForService(currentService)
-			m.metrics.BackendConnections.WithLabelValues(currentService, backend, "active", business).Set(active)
-			m.metrics.BackendConnections.WithLabelValues(currentService, backend, "inactive", business).Set(inact)
+			
+			// Update Active/Inactive connections separately as defined in metrics.go
+			m.metrics.ActiveConnections.WithLabelValues(currentService, backend, business).Set(active)
+			m.metrics.InactiveConnections.WithLabelValues(currentService, backend, business).Set(inact)
 			m.metrics.BackendWeight.WithLabelValues(currentService, backend, business).Set(weight)
 
 			// Update health status
