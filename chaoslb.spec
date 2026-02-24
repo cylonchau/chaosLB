@@ -1,5 +1,5 @@
 Name:           chaoslb
-Version:        1.0.0
+Version:        %{version}
 Release:        1%{?dist}
 Summary:        Chaos Load Balancer - IPVS Manager with Prometheus Metrics
 
@@ -7,7 +7,6 @@ License:        MIT
 URL:            https://github.com/cylonchau/chaosLB
 Source0:        %{name}-%{version}.tar.gz
 
-BuildRequires:  golang >= 1.19
 BuildRequires:  systemd-rpm-macros
 Requires:       ipvsadm
 Requires:       iptables
@@ -56,7 +55,7 @@ install -m 644 LICENSE %{buildroot}%{_docdir}/%{name}/LICENSE
 
 %files
 %{_bindir}/chaoslb
-%config(noreplace) %{_sysconfdir}/chaoslb/config.yaml
+%config(noreplace) %{_sysconfdir}/chaoslb/config.json
 %{_unitdir}/chaoslb.service
 %dir %{_var}/log/chaoslb
 %doc %{_docdir}/%{name}/README.md
