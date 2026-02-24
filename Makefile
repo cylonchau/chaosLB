@@ -49,30 +49,11 @@ prepare-dirs:
 	mkdir -p $(TOPDIR)/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 	mkdir -p $(TOPDIR)/RPMS/{noarch,x86_64,i386}
 
-create-files:
-	@echo "Creating necessary files..."
-	mkdir -p systemd config
-	echo '[Unit]' > systemd/$(NAME).service
-	echo 'Description=Chaos Load Balancer Service' >> systemd/$(NAME).service
-	echo 'After=network.target' >> systemd/$(NAME).service
-	echo '' >> systemd/$(NAME).service
-	echo '[Service]' >> systemd/$(NAME).service
-	echo 'Type=simple' >> systemd/$(NAME).service
-	echo 'User=root' >> systemd/$(NAME).service
-	echo 'ExecStart=/usr/bin/chaoslb /etc/chaoslb/config.json' >> systemd/$(NAME).service
-	echo 'Restart=on-failure' >> systemd/$(NAME).service
-	echo '' >> systemd/$(NAME).service
-	echo '[Install]' >> systemd/$(NAME).service
-	echo 'WantedBy=multi-user.target' >> systemd/$(NAME).service
-	echo '{"services":[{"vip":"172.172.1.1","local_port":80,"backends":[{"ip":"192.168.10.228","port":80,"weight":10}],"protocol":"tcp","interface":"ipvs0","business":"web-service"}],"metrics_port":29090}' > config/config.json.example
-	echo '# Chaos Load Balancer' > README.md
-	echo 'MIT License' > LICENSE
-
-prepare-source: prepare-dirs create-files
+prepare-source: prepare-dirs
 	@echo "Preparing source package..."
 	mkdir -p $(NAME)-$(VERSION)
 	cp -r cmd pkg go.mod go.sum $(NAME)-$(VERSION)/
-	cp -r systemd config README.md LICENSE $(NAME)-$(VERSION)/
+	cp chaoslb.service config.json README.md LICENSE $(NAME)-$(VERSION)/
 	tar czf $(SOURCEDIR)/$(NAME)-$(VERSION).tar.gz $(NAME)-$(VERSION)
 	cp $(NAME).spec $(SPECDIR)/
 	rm -rf $(NAME)-$(VERSION)
@@ -96,7 +77,6 @@ clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(TOPDIR)
 	rm -rf $(TARGET_DIR)
-	rm -rf systemd config
 	rm -f *.rpm
 
 dev: build

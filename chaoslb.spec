@@ -45,10 +45,10 @@ install -d %{buildroot}%{_docdir}/%{name}
 install -m 755 target/chaoslb %{buildroot}%{_bindir}/chaoslb
 
 # Install configuration
-install -m 644 config/config.json.example %{buildroot}%{_sysconfdir}/chaoslb/config.json
+install -m 644 config.json %{buildroot}%{_sysconfdir}/chaoslb/config.json
 
 # Install systemd service
-install -m 644 systemd/chaoslb.service %{buildroot}%{_unitdir}/chaoslb.service
+install -m 644 chaoslb.service %{buildroot}%{_unitdir}/chaoslb.service
 
 # Install documentation
 install -m 644 README.md %{buildroot}%{_docdir}/%{name}/README.md
@@ -56,7 +56,7 @@ install -m 644 LICENSE %{buildroot}%{_docdir}/%{name}/LICENSE
 
 %files
 %{_bindir}/chaoslb
-%config(noreplace) %{_sysconfdir}/chaoslb/config.json
+%config(noreplace) %{_sysconfdir}/chaoslb/config.yaml
 %{_unitdir}/chaoslb.service
 %dir %{_var}/log/chaoslb
 %doc %{_docdir}/%{name}/README.md
@@ -78,7 +78,7 @@ getent passwd chaoslb >/dev/null || \
 %systemd_postun_with_restart chaoslb.service
 
 %changelog
-* Mon Sep 15 2025 Your Name <cylonchau@outlook.com> - 1.0.0-1
+* Mon Sep 15 2025 Your Name <cylonchau@outlook.com> - 0.0.1-1
 - Initial package
 - IPVS management with Prometheus metrics
 - Support for multiple backends

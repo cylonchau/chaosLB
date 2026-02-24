@@ -97,16 +97,21 @@ jobs:
     strategy:
       matrix:
         os:
-          - { name: "rockylinux/rockylinux", version: "10", dist: el10 }
+          # - { name: "rockylinux/rockylinux", version: "10", dist: el10 }
           - { name: "rockylinux/rockylinux", version: "9", dist: el9 }
           - { name: almalinux, version: "8", dist: el7 } # 用 alma8 编译 el7
     container:
       image: ${{ matrix.os.name }}:${{ matrix.os.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install build tools
         run: |
+          if [ -d .git ]; then
+            git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          fi
           if command -v dnf >/dev/null; then
             dnf install -y epel-release
             dnf install -y git rpm-build rpmdevtools make gcc \
@@ -145,10 +150,8 @@ jobs:
           rpmdev-setuptree
           mkdir -p chaoslb-${{ steps.version.outputs.version }}
           cp -r cmd pkg go.mod go.sum chaoslb-${{ steps.version.outputs.version }}/
-          mkdir -p chaoslb-${{ steps.version.outputs.version }}/config
-          cp config.yaml chaoslb-${{ steps.version.outputs.version }}/config/config.json.example
-          mkdir -p chaoslb-${{ steps.version.outputs.version }}/systemd
-          if [ -d systemd ]; then cp -r systemd/* chaoslb-${{ steps.version.outputs.version }}/systemd/; fi
+          cp config.json chaoslb-${{ steps.version.outputs.version }}/
+          cp chaoslb.service chaoslb-${{ steps.version.outputs.version }}/
           cp README.md LICENSE chaoslb-${{ steps.version.outputs.version }}/
           tar czf ~/rpmbuild/SOURCES/chaoslb-${{ steps.version.outputs.version }}.tar.gz chaoslb-${{ steps.version.outputs.version }}
           

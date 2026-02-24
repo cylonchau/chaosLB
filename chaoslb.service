@@ -1,0 +1,12 @@
+[Unit]
+Description=Chaos Load Balancer Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/chaoslb /etc/chaoslb/config.json
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
